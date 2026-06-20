@@ -1,0 +1,95 @@
+package controller;
+
+import java.io.ByteArrayInputStream;
+import java.security.Principal;
+import java.util.List;
+
+import org.springframework.core.io.InputStreamResource;
+
+import org.springframework.http.*;
+
+import org.springframework.security.access.prepost.
+PreAuthorize;
+
+import org.springframework.web.bind.annotation.*;
+
+import entity.Fine;
+import service.FineService;
+
+@RestController
+@RequestMapping("/fines")
+
+public class FineController {
+
+    private final FineService service;
+
+    public FineController(FineService service) {
+        this.service = service;
+    }
+
+    @PostMapping("/create")
+//    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public Fine createFine(
+
+            @RequestParam String email,
+            @RequestParam Long borrowId,
+            @RequestParam double amount) {
+
+        return service.createFine(
+                email,
+                borrowId,
+                amount
+        );
+    }
+
+    @GetMapping("/my")
+    @PreAuthorize("hasRole('USER')")
+    public List<Fine> myFines(
+            Principal principal) {
+
+        return service.myFines(principal.getName()
+        );
+    }
+
+    @GetMapping("/all")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public List<Fine> allFines() {
+        return service.allFines();
+    }
+
+    @GetMapping("/pay/{id}")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<InputStreamResource>
+    payFine(@PathVariable Long id) {
+
+        ByteArrayInputStream bis = service.payFine(id);
+        HttpHeaders headers = new HttpHeaders();
+
+        headers.add(
+                "Content-Disposition",
+                "inline; filename=receipt.pdf"
+        );
+
+        return ResponseEntity.ok()
+
+                .headers(headers)
+                .contentType(
+                        MediaType.APPLICATION_PDF
+                )
+                .body(
+                        new InputStreamResource(bis)
+                );
+    }
+    
+    @GetMapping("/count")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public long totalFines() {
+        return service.totalFines();
+    }
+    
+    @GetMapping("/amount")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public Double totalFineAmount() {
+        return service.totalFineAmount();
+    }
+}

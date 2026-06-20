@@ -1,0 +1,41 @@
+spring.application.name=api-gateway
+
+server.port=8085
+
+# ===================================
+# EUREKA
+# ===================================
+
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
+#eureka.client.service-url.defaultZone=http://eureka-server:8761/eureka/
+
+# ===================================
+# GATEWAY ROUTES
+# ===================================
+
+# USER SERVICE
+spring.cloud.gateway.routes[0].id=user-service
+spring.cloud.gateway.routes[0].uri=lb://USER-SERVICE
+spring.cloud.gateway.routes[0].predicates[0]=Path=/auth/**,/admin/**,/users/**
+
+# BOOK SERVICE
+spring.cloud.gateway.routes[1].id=book-service
+spring.cloud.gateway.routes[1].uri=lb://BOOK-SERVICE
+spring.cloud.gateway.routes[1].predicates[0]=Path=/books/**
+
+# BORROW SERVICE
+spring.cloud.gateway.routes[2].id=borrow-service
+spring.cloud.gateway.routes[2].uri=lb://BORROW-SERVICE
+spring.cloud.gateway.routes[2].predicates[0]=Path=/borrow/**
+
+# FINE SERVICE
+spring.cloud.gateway.routes[3].id=fine-service
+spring.cloud.gateway.routes[3].uri=lb://FINE-SERVICE
+spring.cloud.gateway.routes[3].predicates[0]=Path=/fines/**
+
+# ===================================
+# LOGGING
+# ===================================
+
+logging.level.org.springframework.cloud.gateway=DEBUG
+logging.level.org.springframework.security=DEBUG

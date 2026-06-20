@@ -1,0 +1,229 @@
+package service;
+
+import security.JwtUtil;
+import dto.AuthResponse;
+import dto.LoginRequest;
+import dto.RegisterRequest;
+import entity.Role;
+import entity.User;
+import exception.UserAlreadyExistsException;
+import exception.UserNotFoundException;
+import repository.UserRepository;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+@Service
+public class UserService {
+
+    private static final Logger logger =
+            LoggerFactory.getLogger(UserService.class);
+
+    private final UserRepository repository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
+
+    public UserService(UserRepository repository,
+                       PasswordEncoder passwordEncoder,
+                       JwtUtil jwtUtil) {
+
+        this.repository = repository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
+    }
+
+    // =========================
+    // REGISTER NORMAL USER
+    // =========================
+    public String register(RegisterRequest request) {
+
+        logger.info("Registering user: {}", request.getEmail());
+
+        // Check existing user
+        if (repository.findByEmail(request.getEmail()).isPresent()) {
+
+            logger.error("User already exists: {}", request.getEmail());
+
+            throw new UserAlreadyExistsException(
+                    "User already exists with email: "
+                            + request.getEmail()
+            );
+        }
+
+        // Create user
+        User user = new User();
+
+        user.setEmail(request.getEmail());
+        user.setPassword(
+            passwordEncoder.encode(user.getPassword())
+        );
+        user.setRole(Role.USER);
+
+        repository.save(user);
+
+        logger.info("User registered successfully: {}",
+                request.getEmail());
+
+        return "User Registered Successfully";
+    }
+
+    // =========================
+    // LOGIN
+    // =========================
+    public AuthResponse login(LoginRequest request) {
+
+        logger.info("Login attempt for user: {}",
+                request.getEmail());
+
+        // Find user
+        User user = repository.findByEmail(request.getEmail())
+                .orElseThrow(() -> {
+
+                    logger.error("User not found: {}",
+                            request.getEmail());
+
+                    return new UserNotFoundException(
+                            "User not found"
+                    );
+                });
+
+        // Password validation
+        if (!passwordEncoder.matches(
+                request.getPassword(),
+                user.getPassword())) {
+
+            logger.error("Invalid password for user: {}",
+                    request.getEmail());
+
+            throw new RuntimeException("Invalid Password");
+        }
+
+        // Generate JWT token
+        String token = jwtUtil.generateToken(
+                user.getEmail(),
+                user.getRole().name()
+        );
+
+        logger.info("Login successful for user: {}",
+                request.getEmail());
+
+        return new AuthResponse(token);
+    }
+
+    // =========================
+    // CREATE ADMIN
+    // ONLY SUPER_ADMIN SHOULD CALL THIS
+    // =========================
+    public String createAdmin(RegisterRequest request) {
+
+        logger.info("Creating ADMIN user: {}",
+                request.getEmail());
+
+        // Check existing user
+        if (repository.findByEmail(request.getEmail()).isPresent()) {
+
+            logger.error("Admin already exists: {}",
+                    request.getEmail());
+
+            throw new UserAlreadyExistsException(
+                    "Admin already exists"
+            );
+        }
+
+        User admin = new User();
+
+        admin.setEmail(request.getEmail());
+        admin.setPassword(
+            passwordEncoder.encode(request.getPassword())
+        );
+        admin.setRole(Role.ADMIN);
+
+        repository.save(admin);
+
+        logger.info("ADMIN created successfully: {}",
+                request.getEmail());
+
+        return "ADMIN created successfully";
+    }
+
+    // =========================
+    // CREATE SUPER ADMIN
+    // OPTIONAL METHOD
+    // =========================
+    public String createSuperAdmin(RegisterRequest request) {
+
+        logger.info("Creating SUPER_ADMIN: {}",
+                request.getEmail());
+
+        if (repository.findByEmail(request.getEmail()).isPresent()) {
+
+            logger.error("SUPER_ADMIN already exists: {}",
+                    request.getEmail());
+
+            throw new UserAlreadyExistsException(
+                    "SUPER_ADMIN already exists"
+            );
+        }
+
+        User superAdmin = new User();
+
+        superAdmin.setEmail(request.getEmail());
+        superAdmin.setPassword(
+            passwordEncoder.encode(request.getPassword())
+        );
+        superAdmin.setRole(Role.SUPER_ADMIN);
+
+        repository.save(superAdmin);
+
+        logger.info("SUPER_ADMIN created successfully: {}",
+                request.getEmail());
+
+        return "SUPER_ADMIN created successfully";
+    }
+
+    // =========================
+    // GET USER BY EMAIL
+    // =========================
+    public User getUserByEmail(String email) {
+
+        logger.info("Fetching user by email: {}", email);
+
+        return repository.findByEmail(email)
+                .orElseThrow(() -> {
+
+                    logger.error("User not found: {}", email);
+
+                    return new UserNotFoundException(
+                            "User not found"
+                    );
+                });
+    }
+
+    // =========================
+    // DELETE USER
+    // =========================
+    public String deleteUser(Long id) {
+
+        logger.info("Deleting user with id: {}", id);
+
+        User user = repository.findById(id)
+                .orElseThrow(() -> {
+
+                    logger.error("User not found with id: {}", id);
+
+                    return new UserNotFoundException(
+                            "User not found"
+                    );
+                });
+
+        repository.delete(user);
+
+        logger.info("User deleted successfully: {}",
+                user.getEmail());
+
+        return "User deleted successfully";
+    }
+}

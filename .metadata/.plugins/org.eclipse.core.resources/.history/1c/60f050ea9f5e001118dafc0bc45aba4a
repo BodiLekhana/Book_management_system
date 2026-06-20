@@ -1,0 +1,94 @@
+package service;
+
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.springframework.stereotype.Service;
+
+import client.BookClient;
+import client.FineClient;
+import entity.BorrowRecord;
+import repository.BorrowRepository;
+
+@Service
+public class BorrowService {
+
+    private static final Logger logger = LoggerFactory.getLogger(BorrowService.class);
+
+    private final BorrowRepository repository;
+    private final BookClient bookClient;
+    private final FineClient fineClient;
+
+    public BorrowService(BorrowRepository repository, BookClient bookClient, FineClient fineClient) {
+        this.repository = repository;
+        this.bookClient = bookClient;
+        this.fineClient = fineClient;
+        
+    }
+
+    public BorrowRecord borrowBook(Long bookId,String userEmail) {
+
+        logger.info("Borrow request for book {} by {}",bookId,userEmail);
+        BorrowRecord record = new BorrowRecord();
+
+        bookClient.reduceQuantity(bookId);
+        
+        record.setBookId(bookId);
+        record.setUserEmail(userEmail);
+        record.setBorrowDate(LocalDate.now());
+        record.setDueDate( LocalDate.now().plusDays(7) );
+        record.setReturned(false);
+       
+        logger.info("Book quantity reduced");
+        logger.info("Book borrowed successfully");
+        return repository.save(record);        
+    }
+
+    public String returnBook(Long id) {
+
+        BorrowRecord record =
+                repository.findById(id)
+                .orElseThrow(() ->
+                new RuntimeException(
+                        "Borrow record not found"
+                ));
+
+        if (record.isReturned()) {
+            throw new RuntimeException("Book already returned");
+        }
+        record.setReturned(true);
+        record.setReturnDate(LocalDate.now());
+
+        repository.save(record);
+        bookClient.increaseQuantity( record.getBookId());
+        logger.info("Book quantity increased");
+        logger.info("Book returned");
+        
+        if (record.getReturnDate().isAfter(record.getDueDate())) { 
+        	long daysLate = ChronoUnit.DAYS.between( record.getDueDate(), record.getReturnDate() ); 
+        	double fineAmount = daysLate * 10; 
+        	logger.info( "Late return detected. Fine: {}", fineAmount ); 
+        	fineClient.createFine( record.getUserEmail(), record.getId(), fineAmount ); 
+        	logger.info( "Fine created successfully" ); 
+        	return "Book returned late. Fine generated: ₹" + fineAmount; 
+        }
+        
+        return "Book Returned";
+    }
+
+    public List<BorrowRecord> getAllRecords() {
+        return repository.findAll();
+    }
+
+    public List<BorrowRecord> getUserRecords(String email) {
+        return repository.findByUserEmail(email);
+    }
+    
+    public long totalBorrows() {
+        return repository.count();
+    }
+}
